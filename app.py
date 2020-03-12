@@ -43,15 +43,15 @@ template = {
         "margin": {"r": 0, "t": 30, "l": 0, "b": 20},
         'bargap': 0.05,
         'xaxis': {'showgrid': False, 'automargin': True},
-        'yaxis': {'showgrid': True, 'automargin': True,
-                  'gridwidth': 0.5, 'gridcolor': mapbox_land_color},
+        'yaxis': {'showgrid': True, 'automargin': True},
+                #   'gridwidth': 0.5, 'gridcolor': mapbox_land_color},
     }
 }
 
 
 colors = {}
 mappings = {}
-colors['sex'] = ['#ff0000', '#00ff00']
+colors['sex'] = ['#0000FF', '#00ff00']
 colors['income'] = [
     "#e0bb7f",
     "#00b3b3",
@@ -136,6 +136,7 @@ cow_mappings_hover = {
 }
 
 mappings['cow'] = {
+    -1: "All",
     0: "Emp private for-profit",
     1: "Self-employed for-profit",
     2: "Emp private not-for-profit",
@@ -148,6 +149,7 @@ mappings['cow'] = {
 }
 
 mappings['sex'] = {
+    -1: "All genders",
     0: 'Males',
     1: 'Females'
 }
@@ -209,9 +211,6 @@ def load_dataset(path):
     """
     df_d = cudf.read_parquet(path)
     df_d.sex = df_d.sex.to_pandas().astype('category')
-    df_d.education = df_d.education.to_pandas().astype('category')
-    df_d.income = df_d.income.to_pandas().astype('category')
-    # df_d.cow = df_d.cow.to_pandas().astype('category')
     return df_d
 
 
@@ -279,6 +278,11 @@ app.layout = html.Div(children=[
     html.Div(children=[
         html.Div(children=[
             html.Div(children=[
+                html.Div(children=[
+                    html.Button(
+                        "Clear All Selections", id='clear-all', className='reset-button'
+                    ),
+                ]),
                 html.H4([
                     "Selected Polpulation",
                 ], className="container_title"),
@@ -289,12 +293,7 @@ app.layout = html.Div(children=[
                         config={'displayModeBar': False},
                     ),
                     style={'height': row_heights[0]},
-                ),
-                html.Div(children=[
-                    html.Button(
-                        "Clear All Selections", id='clear-all', className='reset-button'
-                    ),
-                ]),
+                )
             ], className='six columns pretty_container', id="indicator-div"),
             html.Div(children=[
                 html.H4([
@@ -322,23 +321,15 @@ app.layout = html.Div(children=[
                         html.Td(html.Div("Color by"), className="config-label"),
                         html.Td(dcc.Dropdown(
                             id='aggregate-dropdown',
-                            options=[
-                                {'label': agg, 'value': agg}
-                                for agg in ['count', 'count_cat']
+                            options=
+                            [
+                                {'label': 'count', 'value': 'count'},
+                                {'label': 'category by gender', 'value': 'count_cat'},
                             ],
                             value='count',
                             searchable=False,
                             clearable=False,
                         )),
-                        html.Td(dcc.Dropdown(
-                            id='aggregate-col-dropdown',
-                            value='sex',
-                            searchable=False,
-                            clearable=False,
-                        )),
-                    ]),
-                    html.Tr([
-                        html.Td(html.Div("Colormap"), className="config-label"),
                         html.Td(dcc.Dropdown(
                             id='colorscale-dropdown',
                             options=[
@@ -349,19 +340,37 @@ app.layout = html.Div(children=[
                             searchable=False,
                             clearable=False,
                         )),
+                    ]),
+                    html.Tr([
+                        html.Td(html.Div("Class of Workers"), className="config-label"),
                         html.Td(dcc.Dropdown(
-                            id='colorscale-transform-dropdown',
-                            options=[{'label': t, 'value': t}
-                                     for t in ['linear', 'sqrt', 'cbrt', 'log']],
-                            value='linear',
+                            id='cow-dropdown',
+                            options=[
+                                {'label': val, 'value': key}
+                                for key, val in mappings['cow'].items()
+                            ],
+                            value=-1,
                             searchable=False,
                             clearable=False,
                         )),
+                        html.Td(dcc.Dropdown(
+                            id='sex-dropdown',
+                            options=[
+                                {'label': val, 'value': key}
+                                for key, val in mappings['sex'].items()
+                            ],
+                            value=-1,
+                            searchable=False,
+                            clearable=False,
+                        )),
+                        
+                        
                     ]),
-                ], style={'width': '100%', 'height': f'{row_heights[0] + 40}px'}),
+                ], style={'width': '100%', 'height': f'{row_heights[0]}px'}),
             ], className='six columns pretty_container', id="config-div"),
         ]),
         html.Div(children=[
+            html.Button("Clear Selection", id='reset-map', className='reset-button'),
             html.H4([
                 "US Population(each individual)",
             ], className="container_title"),
@@ -369,7 +378,6 @@ app.layout = html.Div(children=[
                 id='map-graph',
                 figure=blank_fig(row_heights[1]),
             ),
-            html.Button("Clear Selection", id='reset-map', className='reset-button'),
         ], className='twelve columns pretty_container',
             style={
                 'width': '98%',
@@ -378,6 +386,7 @@ app.layout = html.Div(children=[
             id="map-div"
         ),
         html.Div(children=[
+            html.Button("Clear Selection", id='reset-scatter', className='reset-button'),
             html.H4([
                 "Education - Income distribution",
             ], className="container_title"),
@@ -385,7 +394,7 @@ app.layout = html.Div(children=[
                 id='scatter-graph',
                 figure=blank_fig(row_heights[1]),
             ),
-            html.Button("Clear Selection", id='reset-scatter', className='reset-button'),
+            
         ], className='twelve columns pretty_container',
             style={
                 'width': '98%',
@@ -396,59 +405,23 @@ app.layout = html.Div(children=[
         html.Div(children=[
             html.Div(
                 children=[
+                    html.Button(
+                        "Clear Selection", id='clear-age', className='reset-button'
+                    ),
                     html.H4([
-                        "Age (Males)",
+                        "Age",
                     ], className="container_title"),
+                    
                     dcc.Graph(
-                        id='age-male-histogram',
+                        id='age-histogram',
                         config={'displayModeBar': False},
-                        figure=blank_fig(row_heights[2]),
+                        figure=blank_fig(row_heights[1]),
                         animate=True
                     ),
-                    html.Button(
-                        "Clear Selection", id='clear-age-male', className='reset-button'
-                    ),
                 ],
-                className='six columns pretty_container', id="age-male-div"
+                className='twelve columns pretty_container', id="age-div"
             )
-        ]),
-        html.Div(children=[
-            html.Div(
-                children=[
-                    html.H4([
-                        "Age (Females)",
-                    ], className="container_title"),
-                    dcc.Graph(
-                        id='age-female-histogram',
-                        config={'displayModeBar': False},
-                        figure=blank_fig(row_heights[2]),
-                        animate=True
-                    ),
-                    html.Button(
-                        "Clear Selection", id='clear-age-female', className='reset-button'
-                    ),
-                ],
-                className='six columns pretty_container', id="age-female-div"
-            )
-        ]),
-        html.Div(children=[
-            html.H4([
-                "Class of Workers",
-            ], className="container_title"),
-            dcc.Graph(
-                id='cow-histogram',
-                config={'displayModeBar': False},
-                figure=blank_fig(row_heights[1]),
-                animate=True
-            ),
-            html.Button(
-                "Clear Selection", id='clear-cow', className='reset-button'
-            ),
-        ], className='twelve columns pretty_container',
-
-            id="cow-div"
-        ),
-        
+        ]),        
     ]),
     html.Div(
         [
@@ -470,58 +443,45 @@ app.layout = html.Div(children=[
     ),
 ])
 
-# Register callbacks
-@app.callback(
-    [Output('aggregate-col-dropdown', 'options'),
-     Output('aggregate-col-dropdown', 'disabled')],
-    [Input('aggregate-dropdown', 'value')]
-)
-def update_agg_col_dropdown(agg):
-    if agg == 'count':
-        options = [{'label': 'NA',
-                    'value': 'NA'}]
-        disabled = True
-    else:
-        options = [{'label': v, 'value': k} for k, v in column_labels.items()]
-        disabled = False
-    return options, disabled
+# # Register callbacks
+# @app.callback(
+#     [Output('aggregate-col-dropdown', 'options'),
+#      Output('aggregate-col-dropdown', 'disabled')],
+#     [Input('sex-dropdown', 'value')]
+# )
+# def update_agg_col_dropdown(agg):
+#     if agg == 'count':
+#         options = [{'label': 'NA',
+#                     'value': 'NA'}]
+#         disabled = True
+#     else:
+#         options = [{'label': v, 'value': k} for k, v in column_labels.items()]
+#         disabled = False
+#     return options, disabled
 
 
 # Clear/reset button callbacks
 @app.callback(
-    Output('map-graph', 'selectedData'),
+    Output('map-graph', 'relayoutData'),
     [Input('reset-map', 'n_clicks'), Input('clear-all', 'n_clicks')]
 )
 def clear_map(*args):
     return None
 
 @app.callback(
-    Output('age-male-histogram', 'selectedData'),
-    [Input('clear-age-male', 'n_clicks'), Input('clear-all', 'n_clicks')]
+    Output('age-histogram', 'selectedData'),
+    [Input('clear-age', 'n_clicks'), Input('clear-all', 'n_clicks')]
 )
-def clear_age_hist_male_selections(*args):
-    return None
-
-@app.callback(
-    Output('age-female-histogram', 'selectedData'),
-    [Input('clear-age-female', 'n_clicks'), Input('clear-all', 'n_clicks')]
-)
-def clear_age_hist_female_selections(*args):
-    return None
-
-@app.callback(
-    Output('cow-histogram', 'selectedData'),
-    [Input('clear-cow', 'n_clicks'), Input('clear-all', 'n_clicks')]
-)
-def clear_cow_selections(*args):
+def clear_age_hist_selections(*args):
     return None
 
 @app.callback(
     Output('scatter-graph', 'selectedData'),
     [Input('reset-scatter', 'n_clicks'), Input('clear-all', 'n_clicks')]
 )
-def clear_cow_selections(*args):
+def clear_scatter_selections(*args):
     return None
+
 # Query string helpers
 def bar_selection_to_query(selection, column):
     """
@@ -555,7 +515,7 @@ def build_query(selections, exclude=None):
     Returns:
         String containing a query expression compatible with DataFrame.query.
     """
-    other_selected = {sel for c, sel in selections.items() if c != exclude}
+    other_selected = {sel for c, sel in selections.items() if (c != exclude and sel != -1)}
     if other_selected:
         return ' and '.join(other_selected)
     else:
@@ -619,6 +579,14 @@ def build_datashader_plot(
 
     # Build query expressions
     query_expr_xy = f"(x >= {x0}) & (x <= {x1}) & (y >= {y0}) & (y <= {y1})"
+    datashader_color_scale = {}
+
+    if aggregate == 'count_cat':
+        datashader_color_scale['color_key'] = colors[aggregate_column] 
+    else:
+        datashader_color_scale['cmap'] = [i[1] for i in build_colorscale(colorscale_name, colorscale_transform, aggregate, aggregate_column)]
+        if not isinstance(df, cudf.DataFrame):
+            df[aggregate_column] = df[aggregate_column].astype('int8')
 
     cvs = ds.Canvas(
         plot_width=1400,
@@ -628,11 +596,7 @@ def build_datashader_plot(
     agg = cvs.points(
         df, x='x', y='y', agg=getattr(ds, aggregate)(aggregate_column)
     )
-    datashader_color_scale = {}
-    if aggregate == 'count_cat':
-        datashader_color_scale['color_key'] = colors[aggregate_column]
-    else:
-        datashader_color_scale['cmap'] = [i[1] for i in build_colorscale(colorscale_name, colorscale_transform, aggregate, aggregate_column)]
+    
 
     # Count the number of selected towers
     temp = agg.sum()
@@ -696,6 +660,10 @@ def build_datashader_plot(
             max_px = 5
         elif n_selected < 50_000:
             max_px = 10
+        elif n_selected < 20_000:
+            max_px = 20
+        elif n_selected < 10_000:
+            max_px = 25
         else:
             max_px = 1
         img = tf.shade(agg, **datashader_color_scale)
@@ -753,8 +721,8 @@ def build_datashader_plot(
                 'x1': 1,
                 'y1': 1,
                 'line': {
-                    'width': 2,
-                    'color': '#B0BEC5',
+                    'width': 1,
+                    'color': '#191a1a',
                 }
             }]
         },
@@ -841,14 +809,7 @@ def build_histogram_default_bins(df, column, selections, query_cache, orientatio
     Returns:
         Histogram figure dictionary
     """
-    # query = build_query(selections, column)
-    # if query in query_cache:
-    #     df = query_cache[query]
-    # elif query:
-    #     df = df.query(query)
-    #     query_cache[query] = df
 
-    # group = df.groupby(column)[column].count()
     bin_edges = df.index.values
     counts = df.values
 
@@ -858,14 +819,13 @@ def build_histogram_default_bins(df, column, selections, query_cache, orientatio
         colorscale = [clr for v, clr in zip(mappings[aggregate_column].keys(), colors[aggregate_column])]
         marker = {'color': colorscale}
 
+    range_ages = [20,40,60,84, 85]
+    colors_ages = ['#C700E5','#9D00DB', '#7300D2','#4900C8','#1F00BF']
+    labels = ['0-20', '21-40', '41-60', '60-84', '85+']
     # centers = (bin_edges[:-1] + bin_edges[1:]) / 2.0
     if orientation == 'h':
         fig = {
-            'data': [{
-                'type': 'bar', 'x': counts, 'y': bin_edges,
-                'marker': marker,
-                'orientation': 'h'
-            }],
+            'data':[],
             'layout': {
                 'xaxis': {
                     'type': 'log',
@@ -882,10 +842,7 @@ def build_histogram_default_bins(df, column, selections, query_cache, orientatio
         }
     else:
         fig = {
-            'data': [{
-                'type': 'bar', 'x': bin_edges, 'y': counts,
-                'marker': marker,
-            }],
+            'data':[],
             'layout': {
                 'yaxis': {
                     'type': 'log',
@@ -900,6 +857,32 @@ def build_histogram_default_bins(df, column, selections, query_cache, orientatio
                 'uirevision': True,
             }
         }
+
+    for index, ages in enumerate(range_ages):
+        if index == 0:
+            count_temp = counts[:ages]
+            bin_edges_temp = bin_edges[:ages]
+        else:
+            count_temp = counts[range_ages[index-1]:ages]
+            bin_edges_temp = bin_edges[range_ages[index-1]:ages]
+
+        if orientation == 'h':
+            fig['data'].append(
+                {
+                'type': 'bar', 'x': count_temp, 'y': bin_edges_temp,
+                'marker': {'color': colors_ages[index]},
+                'name':labels[index]
+                }
+            )
+        else:
+            fig['data'].append(
+                {
+                'type': 'bar', 'x': bin_edges_temp, 'y': count_temp,
+                'marker': {'color': colors_ages[index]},
+                'name':labels[index]
+                }
+            )
+        
     if column not in selections:
         fig['data'][0]['selectedpoints'] = False
 
@@ -907,9 +890,8 @@ def build_histogram_default_bins(df, column, selections, query_cache, orientatio
 
 
 def build_updated_figures(
-        df, relayout_data, selected_age_male, selected_age_female, selected_cow, selected_scatter_graph,
-        aggregate, aggregate_column,
-        colorscale_name, colorscale_transform
+        df, relayout_data, selected_age, selected_scatter_graph,
+        aggregate, colorscale_name, selected_cow, selected_sex
 ):
     """
     Build all figures for dashboard
@@ -932,30 +914,39 @@ def build_updated_figures(
         cow_histogram, scatter_graph,
         n_selected_indicator)
     """
-    selected = {
-        col: bar_selection_to_query(sel, col)
-        for col, sel in zip([
-            'age', 'age', 'cow'
-        ], [
-            selected_age_male, selected_age_female, 
-            selected_cow
-        ]) if sel and sel.get('points', [])
-    }
+    global data_3857, data_center_3857, data_4326, data_center_4326
 
-    if selected_age_male:
-        selected['sex_males'] = 'sex == 0'
-    if selected_age_female:
-        selected['sex_females'] = 'sex == 1'
+    colorscale_transform, aggregate_column = 'linear', 'sex'
+    selected = {}
+
+    if selected_age:
+        selected = {
+            'age': bar_selection_to_query(selected_age.get('points', []), 'age')
+        }
 
     array_module = cupy if isinstance(df, cudf.DataFrame) else np
     all_hists_query = build_query(selected)
+
+    drop_down_queries = ''
+    if selected_sex != -1:
+        drop_down_queries = 'sex == @selected_sex'
+
+    if selected_cow != -1:
+        if len(drop_down_queries) == 0:
+            drop_down_queries = 'cow == @selected_cow'
+        else:
+            drop_down_queries += ' and cow == @selected_cow'
+    
+    if len(drop_down_queries) > 0:
+        df = df.query(drop_down_queries)
+
     isin_mask_scatter = None
 
     if selected_scatter_graph:
         selected_pincp = array_module.array([p['x'] for p in selected_scatter_graph['points']])
         selected_schl = array_module.array([p['y'] for p in selected_scatter_graph['points']])
-        pincp_array = df.income.astype('int8').values
-        schl_array = df.education.astype('int8').values
+        pincp_array = df.income.values
+        schl_array = df.education.values
         isin_mask1 = array_module.zeros(len(pincp_array), dtype=np.bool)
         isin_mask2 = array_module.zeros(len(schl_array), dtype=np.bool)
         
@@ -996,10 +987,10 @@ def build_updated_figures(
         }
     else:
         position = {
-            'zoom': 1,
+            'zoom': 2.5,
             'pitch': 0,
             'bearing': 0,
-            'center': {'lon': data_center_4326[0][0], 'lat': data_center_4326[0][1]}
+            'center': {'lon': data_center_4326[0][0]-100, 'lat': data_center_4326[0][1]-10}
         }
         coordinates_3857 = data_3857
         coordinates_4326 = data_4326
@@ -1024,17 +1015,19 @@ def build_updated_figures(
         df_scatter.query(all_hists_query) if all_hists_query else df_scatter, aggregate,
         aggregate_column, colorscale_name, colorscale_transform, new_coordinates, position, x_range, y_range)
 
+    df_hists = df_map.query(all_hists_query) if all_hists_query else df_map
     # Build indicator figure
     n_selected_indicator = {
         'data': [{
             'type': 'indicator',
             'value': len(
-                df_map.query(all_hists_query) if all_hists_query else df_map
+                df_hists
             ),
             'number': {
                 'font': {
                     'color': text_color
-                }
+                },
+                "valueformat": ".0f"
             }
         }],
         'layout': {
@@ -1046,47 +1039,19 @@ def build_updated_figures(
     
     query_cache = {}
 
-    if build_query(selected, exclude='sex'):
-        df_gender = df_map.query(build_query(selected, exclude='sex'))
-    else:
-        df_gender = df_map
 
     if isinstance(df_map, cudf.DataFrame):
-        df_gender = df_gender.groupby(['sex', 'age'])['x'].count().to_pandas()
+        df_map = df_map.groupby('age')['x'].count().to_pandas()
     else:
-        df_gender = df_gender.groupby(['sex', 'age'])['x'].count()
+        df_map = df_map.groupby('age')['x'].count()
 
-    df_male = df_gender.loc[(0,)]
-    age_male_histogram = build_histogram_default_bins(
-        df_male, 'age', selected, query_cache,'v', colorscale_name, colorscale_transform, aggregate, aggregate_column
+    age_histogram = build_histogram_default_bins(
+        df_map, 'age', selected, query_cache,'v', colorscale_name, colorscale_transform, aggregate, aggregate_column
     )
-    df_female = df_gender.loc[(1,)]
-    age_female_histogram = build_histogram_default_bins(
-        df_female, 'age', selected, query_cache,'v', colorscale_name, colorscale_transform, aggregate, aggregate_column
-    )
-
-    if build_query(selected, exclude='cow'):
-        df_cow = df_map.query(build_query(selected, exclude='cow'))
-    else:
-        df_cow = df_map
-    if isinstance(df_map, cudf.DataFrame):
-        df_cow = df_cow.groupby(['cow'])['x'].count().to_pandas()
-    else:
-        df_cow = df_cow.groupby(['cow'])['x'].count()
-    cow_histogram = build_histogram_default_bins(
-        df_cow, 'cow', selected, query_cache, 'h', colorscale_name, colorscale_transform, aggregate, aggregate_column
-    )
-
-    cow_histogram['layout']['yaxis'] = {
-                'title': {
-                    'text': "Class of Workers"
-                },
-                'ticktext': list(mappings['cow'].values()),
-                'tickvals': list(mappings['cow'].keys())
-            }
-
+    
+    
     scatter_graph = scatter_bubble_2d(
-        df_map,'income', 'education', selected, query_cache, colorscale_name, colorscale_transform, aggregate, aggregate_column
+        df_hists,'income', 'education', selected, query_cache, colorscale_name, colorscale_transform, aggregate, aggregate_column
     )
 
     scatter_graph['layout'] = {
@@ -1115,8 +1080,7 @@ def build_updated_figures(
     #     None, None,
     #     n_selected_indicator
     # )
-    return (datashader_plot, age_male_histogram, age_female_histogram,
-        cow_histogram, scatter_graph,
+    return (datashader_plot, age_histogram, scatter_graph,
         n_selected_indicator,)
 
 
@@ -1128,20 +1092,18 @@ def register_update_plots_callback(client):
     """
     @app.callback(
         [Output('indicator-graph', 'figure'), Output('map-graph', 'figure'),
-         Output('age-male-histogram', 'figure'), Output('age-female-histogram', 'figure'),
-         Output('cow-histogram', 'figure'), Output('scatter-graph', 'figure')
+         Output('age-histogram', 'figure'), Output('scatter-graph', 'figure')
          ],
-        [Input('map-graph', 'relayoutData'), Input('age-male-histogram', 'selectedData'),
-            Input('age-female-histogram', 'selectedData'), Input('cow-histogram', 'selectedData'),
+        [Input('map-graph', 'relayoutData'), Input('age-histogram', 'selectedData'),
             Input('scatter-graph', 'selectedData'),
-            Input('aggregate-dropdown', 'value'), Input('aggregate-col-dropdown', 'value'),
-            Input('colorscale-dropdown', 'value'), Input('colorscale-transform-dropdown', 'value'),
+            Input('aggregate-dropdown', 'value'), Input('colorscale-dropdown', 'value'),
+            Input('cow-dropdown', 'value'), Input('sex-dropdown', 'value'),
             Input('gpu-toggle', 'on')
         ]
     )
     def update_plots(
-            relayout_data, selected_age_male, selected_age_female, selected_cow, selected_scatter_graph,
-            aggregate, aggregate_column, colorscale_name, transform, gpu_enabled
+            relayout_data, selected_age, selected_scatter_graph,
+            aggregate, colorscale_name, selected_cow, selected_sex, gpu_enabled
     ):
         global data_3857, data_center_3857, data_4326, data_center_4326
 
@@ -1159,20 +1121,18 @@ def register_update_plots_callback(client):
             data_3857, data_center_3857, data_4326, data_center_4326 = projections.compute()
 
         figures_d = delayed(build_updated_figures)(
-            df_d, relayout_data, selected_age_male, selected_age_female, selected_cow, selected_scatter_graph,
-            aggregate, aggregate_column, colorscale_name,
-            transform)
+            df_d, relayout_data, selected_age, selected_scatter_graph,
+            aggregate, colorscale_name, selected_cow, selected_sex
+        )
 
         figures = figures_d.compute()
 
-        (datashader_plot, age_male_histogram, age_female_histogram,
-        cow_histogram, scatter_graph,
+        (datashader_plot, age_histogram, scatter_graph,
         n_selected_indicator,) = figures
 
         print(f"Update time: {time.time() - t0}")
         return (
-            n_selected_indicator, datashader_plot, age_male_histogram, age_female_histogram,
-            cow_histogram, scatter_graph
+            n_selected_indicator, datashader_plot, age_histogram, scatter_graph
         )
 
 
@@ -1235,4 +1195,4 @@ if __name__ == '__main__':
     publish_dataset_to_cluster()
 
     # Launch dashboard
-    app.run_server(debug=False, dev_tools_silence_routes_logging=True)
+    app.run_server(debug=False, dev_tools_silence_routes_logging=True, host='0.0.0.0')
