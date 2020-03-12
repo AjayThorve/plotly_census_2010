@@ -200,7 +200,6 @@ mappings['income'] = {
 
 data_center_3857, data_3857, data_4326, data_center_4326 = [], [], [], []
 
-
 def load_dataset(path):
     """
     Args:
@@ -496,7 +495,7 @@ def bar_selection_to_query(selection, column):
         expression will filter the input DataFrame to contain only those rows that
         are contained in the selection.
     """
-    point_inds = [p['pointIndex'] for p in selection['points']]
+    point_inds = [p['label'] for p in selection['points']]
     xmin = min(point_inds) #bin_edges[min(point_inds)]
     xmax = max(point_inds) + 1 #bin_edges[max(point_inds) + 1]
     xmin_op = "<="
@@ -656,16 +655,9 @@ def build_datashader_plot(
     else:
         # Shade aggregation into an image that we can add to the map as a mapbox
         # image layer
-        if n_selected < 100_000:
-            max_px = 5
-        elif n_selected < 50_000:
-            max_px = 10
-        elif n_selected < 20_000:
-            max_px = 20
-        elif n_selected < 10_000:
-            max_px = 25
-        else:
-            max_px = 1
+        max_px = 1
+        if n_selected<5000:
+            max_px=10
         img = tf.shade(agg, **datashader_color_scale)
         img = tf.dynspread(
                     img,
@@ -809,7 +801,6 @@ def build_histogram_default_bins(df, column, selections, query_cache, orientatio
     Returns:
         Histogram figure dictionary
     """
-
     bin_edges = df.index.values
     counts = df.values
 
@@ -884,7 +875,8 @@ def build_histogram_default_bins(df, column, selections, query_cache, orientatio
             )
         
     if column not in selections:
-        fig['data'][0]['selectedpoints'] = False
+        for i in range(len(fig['data'])):
+            fig['data'][i]['selectedpoints'] = False
 
     return fig
 
@@ -921,7 +913,7 @@ def build_updated_figures(
 
     if selected_age:
         selected = {
-            'age': bar_selection_to_query(selected_age.get('points', []), 'age')
+            'age': bar_selection_to_query(selected_age, 'age')
         }
 
     array_module = cupy if isinstance(df, cudf.DataFrame) else np
@@ -1075,11 +1067,6 @@ def build_updated_figures(
             'uirevision': True,
         }
 
-    # return (
-    #     datashader_plot, age_male_histogram, age_female_histogram,
-    #     None, None,
-    #     n_selected_indicator
-    # )
     return (datashader_plot, age_histogram, scatter_graph,
         n_selected_indicator,)
 
